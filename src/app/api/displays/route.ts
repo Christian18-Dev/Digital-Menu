@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listDisplays, createDisplay } from "@/lib/store";
+import { createDisplay, hydrateDisplays, listDisplays } from "@/lib/store";
+import { getMongoDb } from "@/lib/mongodb";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const db = await getMongoDb();
+  const displaysCollection = db.collection("displays");
+  let displaysFromDb = await displaysCollection
+    .find({}, { projection: { _id: 0 } })
+    .sort({ updatedAt: -1 })
+    .toArray();
+
+  if (displaysFromDb.length === 0) {
+    const now = Date.now();
+    await displaysCollection.updateOne(
+      { id: "lobby-screen" },
+      {
+        $set: {
+          id: "lobby-screen",
+          name: "Lobby Screen",
+          updatedAt: now,
+          online: false,
+          lastSeen: undefined,
+        },
+      },
+      { upsert: true }
+    );
+    displaysFromDb = await displaysCollection
+      .find({}, { projection: { _id: 0 } })
+      .sort({ updatedAt: -1 })
+      .toArray();
+  }
+
+  hydrateDisplays(displaysFromDb as any);
   return NextResponse.json({ displays: listDisplays() });
 }
 
@@ -21,6 +51,21 @@ export async function POST(request: NextRequest) {
 
   const display = createDisplay(payload.name);
 
+  const db = await getMongoDb();
+  await db.collection("displays").updateOne(
+    { id: display.id },
+    {
+      $set: {
+        id: display.id,
+        name: display.name,
+        menuId: display.menuId,
+        updatedAt: display.updatedAt,
+        online: display.online,
+        lastSeen: display.lastSeen,
+      },
+    },
+    { upsert: true }
+  );
+
   return NextResponse.json({ display });
 }
-

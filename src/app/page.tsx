@@ -517,10 +517,40 @@ function CopyLinkButton({ displayId }: { displayId: string }) {
       ? `${window.location.origin}/display/${displayId}`
       : `/display/${displayId}`;
 
+  const copyToClipboard = async (text: string) => {
+    if (typeof window === "undefined") return false;
+
+    const nav = window.navigator as Navigator | undefined;
+    if (nav?.clipboard?.writeText) {
+      try {
+        await nav.clipboard.writeText(text);
+        return true;
+      } catch {
+        // fall through to legacy method
+      }
+    }
+
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.left = "-9999px";
+      document.body.appendChild(el);
+      el.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(el);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   return (
     <button
-      onClick={() => {
-        navigator.clipboard.writeText(link);
+      onClick={async () => {
+        const ok = await copyToClipboard(link);
+        if (!ok) return;
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}

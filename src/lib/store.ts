@@ -22,6 +22,16 @@ export const subscribeToStore = (fn: Subscriber) => {
   return () => subscribers.delete(fn);
 };
 
+export const hydrateMenus = (nextMenus: Menu[]) => {
+  menus.clear();
+  nextMenus.forEach((m) => menus.set(m.id, m));
+};
+
+export const hydrateDisplays = (nextDisplays: Display[]) => {
+  displays.clear();
+  nextDisplays.forEach((d) => displays.set(d.id, d));
+};
+
 export const listMenus = () => Array.from(menus.values());
 
 export const listDisplays = () => Array.from(displays.values());
@@ -96,6 +106,19 @@ export const deleteMenu = (id: string) => {
 export const createDisplay = (name: string): Display => {
   const display: Display = {
     id: randomUUID(),
+    name,
+    updatedAt: Date.now(),
+    online: false,
+    lastSeen: undefined,
+  };
+  displays.set(display.id, display);
+  notify({ type: "displays-changed" });
+  return display;
+};
+
+export const createDisplayWithId = (id: string, name: string): Display => {
+  const display: Display = {
+    id,
     name,
     updatedAt: Date.now(),
     online: false,
