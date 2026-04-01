@@ -12,27 +12,6 @@ export async function GET() {
     .sort({ updatedAt: -1 })
     .toArray();
 
-  if (displaysFromDb.length === 0) {
-    const now = Date.now();
-    await displaysCollection.updateOne(
-      { id: "lobby-screen" },
-      {
-        $set: {
-          id: "lobby-screen",
-          name: "Lobby Screen",
-          updatedAt: now,
-          online: false,
-          lastSeen: undefined,
-        },
-      },
-      { upsert: true }
-    );
-    displaysFromDb = await displaysCollection
-      .find({}, { projection: { _id: 0 } })
-      .sort({ updatedAt: -1 })
-      .toArray();
-  }
-
   hydrateDisplays(displaysFromDb as any);
   return NextResponse.json({ displays: listDisplays() });
 }

@@ -181,18 +181,6 @@ export const heartbeatDisplay = (id: string) => {
   // No notify to reduce chatter; rely on periodic setDisplayOnline on subscribe
 };
 
-// Seed a default display for quick start
-(() => {
-  const displayId = "lobby-screen";
-  displays.set(displayId, {
-    id: displayId,
-    name: "Lobby Screen",
-    updatedAt: Date.now(),
-    online: false,
-    lastSeen: undefined,
-  });
-})();
-
 export const upsertMenuFromPayload = (payload: {
   id?: string;
   name: string;

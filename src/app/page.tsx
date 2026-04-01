@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getSocket } from "@/lib/socket-client";
 import type { Display, Menu, MenuType } from "@/lib/types";
 
@@ -14,6 +15,7 @@ type MenuFormState = {
 const BRANCHES = ["Ateneo", "Mapua", "Lasalle", "UP", "UST"];
 
 export default function Home() {
+  const router = useRouter();
   const [menus, setMenus] = useState<Menu[]>([]);
   const [displays, setDisplays] = useState<Display[]>([]);
   const [creatingMenu, setCreatingMenu] = useState(false);
@@ -200,6 +202,18 @@ export default function Home() {
               Digital Menu System
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              router.replace("/login");
+              router.refresh();
+            }}
+            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Logout
+          </button>
         </div>
       </header>
 
