@@ -45,7 +45,7 @@ export async function middleware(req: NextRequest) {
 
   if (session && isLoginRoute) {
     const url = req.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/dashboard";
     url.search = "";
     return NextResponse.redirect(url);
   }

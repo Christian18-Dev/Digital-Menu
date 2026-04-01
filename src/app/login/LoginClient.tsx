@@ -9,7 +9,7 @@ export default function LoginClient() {
 
   const nextPath = useMemo(() => {
     const candidate = searchParams?.get("next");
-    return candidate && candidate.startsWith("/") ? candidate : "/";
+    return candidate && candidate.startsWith("/") ? candidate : "/dashboard";
   }, [searchParams]);
 
   const [username, setUsername] = useState("");
