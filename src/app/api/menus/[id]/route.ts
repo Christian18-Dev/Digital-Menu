@@ -36,13 +36,19 @@ export async function PUT(
     imageUrls: string[];
   }>;
 
+  const db = await getMongoDb();
+  const menusFromDb = await db
+    .collection("menus")
+    .find({}, { projection: { _id: 0 } })
+    .toArray();
+  hydrateMenus(menusFromDb as any);
+
   const updated = updateMenu(id, payload);
 
   if (!updated) {
     return NextResponse.json({ error: "Menu not found" }, { status: 404 });
   }
 
-  const db = await getMongoDb();
   await db.collection("menus").updateOne(
     { id: updated.id },
     {
