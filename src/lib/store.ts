@@ -29,7 +29,12 @@ export const hydrateMenus = (nextMenus: Menu[]) => {
 
 export const hydrateDisplays = (nextDisplays: Display[]) => {
   displays.clear();
-  nextDisplays.forEach((d) => displays.set(d.id, d));
+  nextDisplays.forEach((d) =>
+    displays.set(d.id, {
+      ...d,
+      branch: typeof (d as any).branch === "string" ? (d as any).branch : "",
+    })
+  );
 };
 
 export const listMenus = () => Array.from(menus.values());
@@ -103,10 +108,11 @@ export const deleteMenu = (id: string) => {
   return true;
 };
 
-export const createDisplay = (name: string): Display => {
+export const createDisplay = (name: string, branch: string): Display => {
   const display: Display = {
     id: randomUUID(),
     name,
+    branch,
     updatedAt: Date.now(),
     online: false,
     lastSeen: undefined,
@@ -116,10 +122,11 @@ export const createDisplay = (name: string): Display => {
   return display;
 };
 
-export const createDisplayWithId = (id: string, name: string): Display => {
+export const createDisplayWithId = (id: string, name: string, branch: string): Display => {
   const display: Display = {
     id,
     name,
+    branch,
     updatedAt: Date.now(),
     online: false,
     lastSeen: undefined,
@@ -127,6 +134,13 @@ export const createDisplayWithId = (id: string, name: string): Display => {
   displays.set(display.id, display);
   notify({ type: "displays-changed" });
   return display;
+};
+
+export const deleteDisplay = (id: string) => {
+  const existed = displays.delete(id);
+  if (!existed) return false;
+  notify({ type: "displays-changed" });
+  return true;
 };
 
 export const updateDisplay = (

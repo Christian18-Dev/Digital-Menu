@@ -12,6 +12,7 @@ export type Menu = {
 export type Display = {
   id: string;
   name: string;
+  branch: string;
   menuId?: string;
   updatedAt: number;
   online?: boolean;

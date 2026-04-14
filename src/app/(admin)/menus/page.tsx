@@ -555,7 +555,7 @@ export default function MenusPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      setBranchUi((prev) => ({ ...prev, editing: true }))
+                      setBranchUi((prev) => ({ ...prev, editing: true, error: null }))
                     }
                     className="shrink-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
                   >
@@ -644,6 +644,158 @@ export default function MenusPage() {
                       : "Save menu"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {branchUi.editing && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close"
+            disabled={branchUi.saving}
+            onClick={() =>
+              setBranchUi((prev) => ({
+                ...prev,
+                editing: false,
+                error: null,
+                newBranchName: "",
+              }))
+            }
+            className="absolute inset-0 bg-black/40"
+          />
+
+          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Edit branches</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Add or delete branches used in the menu dropdown.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={branchUi.saving}
+                onClick={() =>
+                  setBranchUi((prev) => ({
+                    ...prev,
+                    editing: false,
+                    error: null,
+                    newBranchName: "",
+                  }))
+                }
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="flex gap-2">
+                <input
+                  value={branchUi.newBranchName}
+                  onChange={(e) =>
+                    setBranchUi((prev) => ({ ...prev, newBranchName: e.target.value }))
+                  }
+                  placeholder="New branch name"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base shadow-sm outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-200/40"
+                />
+                <button
+                  type="button"
+                  disabled={branchUi.saving}
+                  onClick={requestAddBranch}
+                  className="shrink-0 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {branchUi.saving ? "Saving..." : "Add"}
+                </button>
+              </div>
+
+              {branchUi.error && (
+                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {branchUi.error}
+                </p>
+              )}
+
+              <div className="max-h-64 overflow-auto rounded-xl border border-slate-200">
+                {branchUi.branches.length === 0 ? (
+                  <div className="p-4 text-sm text-slate-600">No branches found.</div>
+                ) : (
+                  <div className="divide-y divide-slate-200">
+                    {branchUi.branches.map((name) => (
+                      <div key={name} className="flex items-center justify-between gap-3 p-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-800">
+                            {name}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={branchUi.saving}
+                          onClick={() => requestRemoveBranch(name)}
+                          className="shrink-0 rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {branchConfirm.open && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close"
+            disabled={branchUi.saving}
+            onClick={() => setBranchConfirm({ open: false })}
+            className="absolute inset-0 bg-black/40"
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              {branchConfirm.action === "add" ? "Add branch" : "Delete branch"}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {branchConfirm.action === "add"
+                ? `Add "${branchConfirm.name}" to branches?`
+                : `Delete "${branchConfirm.name}" from branches?`}
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={branchUi.saving}
+                onClick={() => setBranchConfirm({ open: false })}
+                className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={branchUi.saving}
+                onClick={async () => {
+                  const { action, name } = branchConfirm;
+                  setBranchConfirm({ open: false });
+                  if (action === "add") await doAddBranch(name);
+                  if (action === "delete") await doRemoveBranch(name);
+                }}
+                className={
+                  branchConfirm.action === "add"
+                    ? "rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
+                    : "rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                }
+              >
+                {branchUi.saving
+                  ? "Working..."
+                  : branchConfirm.action === "add"
+                    ? "Add"
+                    : "Delete"}
+              </button>
             </div>
           </div>
         </div>

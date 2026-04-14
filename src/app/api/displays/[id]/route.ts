@@ -3,6 +3,7 @@ import {
   getDisplayWithMenu,
   hydrateDisplays,
   hydrateMenus,
+  deleteDisplay,
   updateDisplay,
 } from "@/lib/store";
 import { getMongoDb } from "@/lib/mongodb";
@@ -39,6 +40,7 @@ export async function PUT(
   const payload = (await request.json()) as Partial<{
     menuId: string | null;
     name?: string;
+    branch?: string;
   }>;
 
   // Convert null to undefined for menuId to match Display type
@@ -60,6 +62,7 @@ export async function PUT(
       $set: {
         id: updated.id,
         name: updated.name,
+        branch: updated.branch,
         menuId: updated.menuId,
         updatedAt: updated.updatedAt,
         online: updated.online,
@@ -69,5 +72,22 @@ export async function PUT(
     { upsert: true }
   );
   return NextResponse.json({ display: updated });
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const db = await getMongoDb();
+  const dbRes = await db.collection("displays").deleteOne({ id });
+  const storeRes = deleteDisplay(id);
+
+  if (dbRes.deletedCount === 0 && !storeRes) {
+    return NextResponse.json({ error: "Display not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
