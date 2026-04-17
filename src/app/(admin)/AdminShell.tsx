@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);

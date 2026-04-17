@@ -9,10 +9,6 @@ type DisplayFormState = {
   branch: string;
 };
 
-type DisplayConfirmState =
-  | { open: false }
-  | { open: true; displayId: string; displayName: string; nextMenuId: string | null };
-
 type DisplayDeleteConfirmState =
   | { open: false }
   | { open: true; displayId: string; displayName: string };
@@ -30,7 +26,9 @@ export default function DisplaysPage() {
   const [editingDisplayId, setEditingDisplayId] = useState<string | null>(null);
   const [form, setForm] = useState<DisplayFormState>({ name: "", branch: "" });
 
-  const [assignConfirm, setAssignConfirm] = useState<DisplayConfirmState>({ open: false });
+  const [pendingMenuIdsByDisplay, setPendingMenuIdsByDisplay] = useState<
+    Record<string, string[]>
+  >({});
   const [deleteConfirm, setDeleteConfirm] = useState<DisplayDeleteConfirmState>({
     open: false,
   });
@@ -44,11 +42,18 @@ export default function DisplaysPage() {
       if (!matchesBranch) return false;
       if (!q) return true;
       const menuName = d.menuId ? menusById.get(d.menuId)?.name ?? "" : "";
+      const menuNames = Array.isArray(d.menuIds)
+        ? d.menuIds
+            .map((id) => menusById.get(id)?.name ?? "")
+            .filter(Boolean)
+            .join(" ")
+        : "";
       return (
         d.name.toLowerCase().includes(q) ||
         d.id.toLowerCase().includes(q) ||
         d.branch.toLowerCase().includes(q) ||
-        menuName.toLowerCase().includes(q)
+        menuName.toLowerCase().includes(q) ||
+        menuNames.toLowerCase().includes(q)
       );
     });
   }, [branchFilter, displays, menusById, query]);
@@ -192,23 +197,14 @@ export default function DisplaysPage() {
     }
   };
 
-  const requestAssignMenu = (display: Display, nextMenuId: string | null) => {
-    setAssignConfirm({
-      open: true,
-      displayId: display.id,
-      displayName: display.name,
-      nextMenuId,
-    });
-  };
-
-  const doAssignMenu = async (displayId: string, nextMenuId: string | null) => {
+  const doAssignMenus = async (displayId: string, nextMenuIds: string[]) => {
     setIsSaving(true);
     setError(null);
     try {
       const res = await fetch(`/api/displays/${displayId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ menuId: nextMenuId }),
+        body: JSON.stringify({ menuIds: nextMenuIds }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -218,6 +214,11 @@ export default function DisplaysPage() {
       if (data.display) {
         setDisplays((prev) => prev.map((d) => (d.id === displayId ? data.display : d)));
       }
+      setPendingMenuIdsByDisplay((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, displayId)) return prev;
+        const { [displayId]: _removed, ...rest } = prev;
+        return rest;
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to update display";
       setError(msg);
@@ -325,8 +326,33 @@ export default function DisplaysPage() {
               {filteredDisplays.map((d) => {
                 const isOnline = !!d.online;
                 const assignedMenu = d.menuId ? menusById.get(d.menuId) : undefined;
+                const assignedMenus = Array.isArray(d.menuIds)
+                  ? d.menuIds.map((id) => menusById.get(id)).filter((m): m is Menu => !!m)
+                  : [];
+                const savedMenuIds = Array.isArray(d.menuIds) ? d.menuIds : [];
+                const effectiveMenuIds = Object.prototype.hasOwnProperty.call(
+                  pendingMenuIdsByDisplay,
+                  d.id
+                )
+                  ? pendingMenuIdsByDisplay[d.id]
+                  : savedMenuIds;
+                const hasPendingChanges = (() => {
+                  if (effectiveMenuIds.length !== savedMenuIds.length) return true;
+                  const a = new Set(effectiveMenuIds);
+                  for (const id of savedMenuIds) {
+                    if (!a.has(id)) return true;
+                  }
+                  return false;
+                })();
+                const effectiveSelectedMenus = effectiveMenuIds
+                  .map((id) => menusById.get(id))
+                  .filter((m): m is Menu => !!m);
                 const assignableMenus = d.branch
-                  ? menus.filter((m) => m.branch === d.branch)
+                  ? menus.filter((m) => {
+                      const menuBranch = (m.branch ?? "").trim();
+                      if (menuBranch.length === 0) return true;
+                      return menuBranch === d.branch;
+                    })
                   : menus;
                 return (
                   <div
@@ -392,31 +418,126 @@ export default function DisplaysPage() {
 
                     <div className="mt-4 space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">
-                        Assigned menu
+                        Menus on this display
                       </p>
 
-                      <select
-                        value={d.menuId ?? ""}
-                        disabled={isSaving}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const nextMenuId = raw ? raw : null;
-                          requestAssignMenu(d, nextMenuId);
-                        }}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-200/40 disabled:opacity-60"
-                      >
-                        <option value="">No menu assigned</option>
-                        {assignableMenus.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.branch} — {m.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-slate-700">
+                            {effectiveMenuIds.length} selected
+                          </p>
+                          <p className="text-xs text-slate-500">Plays in order top-to-bottom</p>
+                        </div>
+
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={isSaving || assignableMenus.length === 0}
+                            onClick={() =>
+                              setPendingMenuIdsByDisplay((prev) => ({
+                                ...prev,
+                                [d.id]: assignableMenus.map((m) => m.id),
+                              }))
+                            }
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            Select all
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() =>
+                              setPendingMenuIdsByDisplay((prev) => ({
+                                ...prev,
+                                [d.id]: [],
+                              }))
+                            }
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            Clear
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isSaving || !hasPendingChanges}
+                            onClick={async () => {
+                              await doAssignMenus(d.id, effectiveMenuIds);
+                            }}
+                            className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
+                          >
+                            {isSaving ? "Saving..." : "Save"}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isSaving || !hasPendingChanges}
+                            onClick={() =>
+                              setPendingMenuIdsByDisplay((prev) => {
+                                if (!Object.prototype.hasOwnProperty.call(prev, d.id)) return prev;
+                                const { [d.id]: _removed, ...rest } = prev;
+                                return rest;
+                              })
+                            }
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
+                          {assignableMenus.length === 0 ? (
+                            <p className="text-xs text-slate-500">No menus available for this branch.</p>
+                          ) : (
+                            assignableMenus.map((m) => {
+                              const checked = effectiveMenuIds.includes(m.id);
+                              return (
+                                <label
+                                  key={m.id}
+                                  className={
+                                    "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm transition " +
+                                    (checked ? "bg-slate-50" : "hover:bg-slate-50")
+                                  }
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={isSaving}
+                                    onChange={(e) => {
+                                      setPendingMenuIdsByDisplay((prev) => {
+                                        const current = Object.prototype.hasOwnProperty.call(prev, d.id)
+                                          ? prev[d.id]
+                                          : savedMenuIds;
+                                        const nextMenuIds = e.target.checked
+                                          ? current.includes(m.id)
+                                            ? current
+                                            : [...current, m.id]
+                                          : current.filter((id) => id !== m.id);
+                                        return { ...prev, [d.id]: nextMenuIds };
+                                      });
+                                    }}
+                                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900"
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block truncate font-semibold text-slate-800">
+                                      {m.name}
+                                    </span>
+                                    <span className="block truncate text-xs text-slate-500">{m.branch}</span>
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
 
                       <p className="text-xs text-slate-500">
-                        {assignedMenu
-                          ? `Now showing: ${assignedMenu.branch} — ${assignedMenu.name}`
-                          : "No menu assigned yet."}
+                        {effectiveSelectedMenus.length > 0
+                          ? `Now showing: ${effectiveSelectedMenus
+                              .map((m) => `${m.branch} — ${m.name}`)
+                              .join(", ")}`
+                          : assignedMenu
+                            ? `Now showing: ${assignedMenu.branch} — ${assignedMenu.name}`
+                            : "No menu assigned yet."}
                       </p>
                     </div>
                   </div>
@@ -508,47 +629,6 @@ export default function DisplaysPage() {
                   {isSaving ? "Saving..." : editingDisplayId ? "Update display" : "Create"}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {assignConfirm.open && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Close"
-            disabled={isSaving}
-            onClick={() => setAssignConfirm({ open: false })}
-            className="absolute inset-0 bg-black/40"
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Assign menu</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Update menu for "{assignConfirm.displayName}"?
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => setAssignConfirm({ open: false })}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={async () => {
-                  const id = assignConfirm.displayId;
-                  const nextMenuId = assignConfirm.nextMenuId;
-                  setAssignConfirm({ open: false });
-                  await doAssignMenu(id, nextMenuId);
-                }}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
-              >
-                {isSaving ? "Working..." : "Confirm"}
-              </button>
             </div>
           </div>
         </div>

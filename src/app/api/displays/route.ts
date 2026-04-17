@@ -31,12 +31,16 @@ export async function POST(request: NextRequest) {
 
   const db = await getMongoDb();
 
-  const counterRes = await db.collection("counters").findOneAndUpdate(
+  const counters = db.collection<{ _id: string; seq: number }>("counters");
+
+  await counters.updateOne(
     { _id: "displayId" },
     { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: "after" }
+    { upsert: true }
   );
-  const nextId = String((counterRes.value as any)?.seq ?? 1);
+
+  const counterDoc = await counters.findOne({ _id: "displayId" });
+  const nextId = String(counterDoc?.seq ?? 1);
 
   const display = createDisplayWithId(nextId, payload.name, payload.branch);
 
@@ -48,6 +52,7 @@ export async function POST(request: NextRequest) {
         name: display.name,
         branch: display.branch,
         menuId: display.menuId,
+        menuIds: display.menuIds,
         updatedAt: display.updatedAt,
         online: display.online,
         lastSeen: display.lastSeen,

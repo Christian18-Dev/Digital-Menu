@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket-client";
 import type { DisplayWithMenu } from "@/lib/types";
 
@@ -93,26 +93,42 @@ export default function DisplayClient({ displayId }: Props) {
     };
   }, [displayId]);
 
+  const activeMenus = useMemo(() => {
+    const menus = payload?.menus && payload.menus.length > 0 ? payload.menus : undefined;
+    const legacyMenu = payload?.menu ? payload.menu : undefined;
+    return menus ?? (legacyMenu ? [legacyMenu] : []);
+  }, [payload?.menu, payload?.menus]);
+
+  const activeImageUrls = useMemo(
+    () => activeMenus.flatMap((m) => m.imageUrls ?? []),
+    [activeMenus]
+  );
+
+  const latestUpdatedAt = useMemo(
+    () => activeMenus.reduce((acc, m) => Math.max(acc, m.updatedAt ?? 0), 0),
+    [activeMenus]
+  );
+
   // Update image index based on time to keep all screens synchronized
   useEffect(() => {
-    if (!payload?.menu?.imageUrls || payload.menu.imageUrls.length <= 1) {
+    if (!activeImageUrls || activeImageUrls.length <= 1) {
       setCurrentImageIndex(0);
       return;
     }
 
     // Calculate initial index based on current time
     // All screens will calculate the same index because they use the same time reference
-    const initialIndex = calculateImageIndex(payload.menu.imageUrls);
+    const initialIndex = calculateImageIndex(activeImageUrls);
     setCurrentImageIndex(initialIndex);
 
     // Update every second to keep in sync (more frequent updates ensure smooth transitions)
     const interval = setInterval(() => {
-      const newIndex = calculateImageIndex(payload.menu!.imageUrls!);
+      const newIndex = calculateImageIndex(activeImageUrls);
       setCurrentImageIndex(newIndex);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [payload?.menu?.imageUrls]);
+  }, [activeImageUrls]);
 
   if (isLoading) {
     return (
@@ -133,7 +149,7 @@ export default function DisplayClient({ displayId }: Props) {
     );
   }
 
-  if (!payload?.menu) {
+  if (activeMenus.length === 0) {
     return (
       <FullScreenShell>
         <p className="text-xl font-semibold">No menu assigned</p>
@@ -144,9 +160,9 @@ export default function DisplayClient({ displayId }: Props) {
     );
   }
 
-  const { menu, name } = payload;
+  const name = payload?.name ?? "";
 
-  if (!menu.imageUrls || menu.imageUrls.length === 0) {
+  if (!activeImageUrls || activeImageUrls.length === 0) {
     return (
       <FullScreenShell>
         <p className="text-xl font-semibold">No menu images</p>
@@ -160,7 +176,7 @@ export default function DisplayClient({ displayId }: Props) {
   return (
     <div className="relative min-h-screen bg-slate-900 text-white">
       <div className="relative h-screen w-screen overflow-hidden bg-black">
-        {menu.imageUrls.map((url, idx) => (
+        {activeImageUrls.map((url, idx) => (
           <div
             key={idx}
             className={`absolute inset-0 transition-opacity duration-1000 ${
@@ -169,7 +185,7 @@ export default function DisplayClient({ displayId }: Props) {
           >
             <img
               src={url}
-              alt={`${menu.name} ${idx + 1}`}
+              alt={`Menu ${idx + 1}`}
               className="h-full w-full object-cover"
             />
           </div>
@@ -178,13 +194,13 @@ export default function DisplayClient({ displayId }: Props) {
       </div>
 
       <div className="pointer-events-none absolute bottom-4 right-4 rounded-md bg-black/70 px-3 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur">
-        Live sync • {new Date(menu.updatedAt).toLocaleTimeString()}
+        Live sync • {new Date(latestUpdatedAt).toLocaleTimeString()}
         <span className="ml-2 text-[10px] font-normal text-slate-300">
           {name}
         </span>
-        {menu.imageUrls.length > 1 && (
+        {activeImageUrls.length > 1 && (
           <span className="ml-2 text-[10px] font-normal text-slate-300">
-            • {currentImageIndex + 1}/{menu.imageUrls.length}
+            • {currentImageIndex + 1}/{activeImageUrls.length}
           </span>
         )}
       </div>

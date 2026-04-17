@@ -39,6 +39,7 @@ export async function PUT(
   const { id } = await params;
   const payload = (await request.json()) as Partial<{
     menuId: string | null;
+    menuIds: string[] | null;
     name?: string;
     branch?: string;
   }>;
@@ -47,6 +48,12 @@ export async function PUT(
   const updatePayload: Partial<Omit<Display, "id">> = {
     ...payload,
     menuId: payload.menuId === null ? undefined : payload.menuId,
+    menuIds:
+      payload.menuIds === null
+        ? undefined
+        : Array.isArray(payload.menuIds)
+          ? payload.menuIds.filter((v) => typeof v === "string")
+          : undefined,
   };
 
   const updated = updateDisplay(id, updatePayload);
@@ -64,6 +71,7 @@ export async function PUT(
         name: updated.name,
         branch: updated.branch,
         menuId: updated.menuId,
+        menuIds: updated.menuIds,
         updatedAt: updated.updatedAt,
         online: updated.online,
         lastSeen: updated.lastSeen,

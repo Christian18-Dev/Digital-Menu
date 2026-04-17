@@ -24,7 +24,12 @@ export const subscribeToStore = (fn: Subscriber) => {
 
 export const hydrateMenus = (nextMenus: Menu[]) => {
   menus.clear();
-  nextMenus.forEach((m) => menus.set(m.id, m));
+  nextMenus.forEach((m) =>
+    menus.set(m.id, {
+      ...m,
+      branch: typeof (m as any).branch === "string" ? (m as any).branch : "",
+    })
+  );
 };
 
 export const hydrateDisplays = (nextDisplays: Display[]) => {
@@ -33,6 +38,9 @@ export const hydrateDisplays = (nextDisplays: Display[]) => {
     displays.set(d.id, {
       ...d,
       branch: typeof (d as any).branch === "string" ? (d as any).branch : "",
+      menuIds: Array.isArray((d as any).menuIds)
+        ? (d as any).menuIds.filter((id: unknown) => typeof id === "string")
+        : undefined,
     })
   );
 };
@@ -49,7 +57,12 @@ export const getDisplayWithMenu = (id: string): DisplayWithMenu | undefined => {
   const display = displays.get(id);
   if (!display) return undefined;
   const menu = display.menuId ? menus.get(display.menuId) : undefined;
-  return { ...display, menu };
+  const menuIds = Array.isArray(display.menuIds) ? display.menuIds : undefined;
+  const resolvedMenus = menuIds
+    ? menuIds.map((menuId) => menus.get(menuId)).filter((m): m is Menu => !!m)
+    : undefined;
+
+  return { ...display, menu, menus: resolvedMenus };
 };
 
 export const createMenu = (
@@ -61,7 +74,7 @@ export const createMenu = (
     id,
     name: input.name,
     type: "image",
-    branch: input.branch,
+    branch: input.branch ?? "",
     imageUrls: input.imageUrls,
     updatedAt: now,
   };
@@ -86,7 +99,7 @@ export const updateMenu = (
   notify({ type: "menus-changed" });
   // notify displays that point to this menu
   Array.from(displays.values())
-    .filter((d) => d.menuId === id)
+    .filter((d) => d.menuId === id || (Array.isArray(d.menuIds) && d.menuIds.includes(id)))
     .forEach((display) =>
       notify({ type: "display-menu-changed", displayId: display.id })
     );
@@ -98,9 +111,18 @@ export const deleteMenu = (id: string) => {
   if (!existed) return false;
   // Clear menu assignment for displays that used it
   Array.from(displays.values())
-    .filter((d) => d.menuId === id)
+    .filter((d) => d.menuId === id || (Array.isArray(d.menuIds) && d.menuIds.includes(id)))
     .forEach((d) => {
-      displays.set(d.id, { ...d, menuId: undefined, updatedAt: Date.now() });
+      const nextMenuIds = Array.isArray(d.menuIds)
+        ? d.menuIds.filter((menuId) => menuId !== id)
+        : undefined;
+
+      displays.set(d.id, {
+        ...d,
+        menuId: d.menuId === id ? undefined : d.menuId,
+        menuIds: nextMenuIds,
+        updatedAt: Date.now(),
+      });
       notify({ type: "display-menu-changed", displayId: d.id });
     });
   notify({ type: "menus-changed" });
@@ -152,7 +174,7 @@ export const updateDisplay = (
   const next: Display = { ...existing, ...input, updatedAt: Date.now() };
   displays.set(id, next);
   notify({ type: "displays-changed" });
-  if (input.menuId !== undefined) {
+  if (input.menuId !== undefined || input.menuIds !== undefined) {
     notify({ type: "display-menu-changed", displayId: id });
   }
   return next;
@@ -199,13 +221,13 @@ export const upsertMenuFromPayload = (payload: {
   id?: string;
   name: string;
   type: MenuType;
-  branch: string;
+  branch?: string;
   imageUrls?: string[];
 }) => {
   if (payload.id && menus.has(payload.id)) {
     return updateMenu(payload.id, {
       name: payload.name,
-      branch: payload.branch,
+      branch: payload.branch ?? "",
       imageUrls: payload.imageUrls,
     });
   }
@@ -213,7 +235,7 @@ export const upsertMenuFromPayload = (payload: {
     id: payload.id,
     name: payload.name,
     type: payload.type,
-    branch: payload.branch,
+    branch: payload.branch ?? "",
     imageUrls: payload.imageUrls,
   });
 };

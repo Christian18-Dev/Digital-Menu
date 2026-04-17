@@ -4,7 +4,7 @@ export type Menu = {
   id: string;
   name: string;
   type: MenuType;
-  branch: string;
+  branch?: string;
   imageUrls?: string[];
   updatedAt: number;
 };
@@ -14,12 +14,13 @@ export type Display = {
   name: string;
   branch: string;
   menuId?: string;
+  menuIds?: string[];
   updatedAt: number;
   online?: boolean;
   lastSeen?: number;
 };
 
-export type DisplayWithMenu = Display & { menu?: Menu };
+export type DisplayWithMenu = Display & { menu?: Menu; menus?: Menu[] };
 
 export type BroadcastEvent =
   | { type: "menus-changed" }

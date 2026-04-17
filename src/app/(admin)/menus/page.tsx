@@ -6,23 +6,9 @@ import type { Menu, MenuType } from "@/lib/types";
 
 type MenuFormState = {
   name: string;
-  branch: string;
   imageFiles: File[];
   imagePreviews: string[];
 };
-
-type BranchUiState = {
-  branches: string[];
-  loading: boolean;
-  error: string | null;
-  editing: boolean;
-  newBranchName: string;
-  saving: boolean;
-};
-
-type BranchConfirmState =
-  | { open: false }
-  | { open: true; action: "add" | "delete"; name: string };
 
 type MenuConfirmState =
   | { open: false }
@@ -38,24 +24,11 @@ export default function MenusPage() {
   );
   const [isMenuFormOpen, setIsMenuFormOpen] = useState(false);
   const [menuQuery, setMenuQuery] = useState("");
-  const [menuBranchFilter, setMenuBranchFilter] = useState<string>("all");
-  const [branchUi, setBranchUi] = useState<BranchUiState>({
-    branches: [],
-    loading: true,
-    error: null,
-    editing: false,
-    newBranchName: "",
-    saving: false,
-  });
-  const [branchConfirm, setBranchConfirm] = useState<BranchConfirmState>({
-    open: false,
-  });
   const [menuConfirm, setMenuConfirm] = useState<MenuConfirmState>({
     open: false,
   });
   const [menuForm, setMenuForm] = useState<MenuFormState>({
     name: "",
-    branch: "",
     imageFiles: [],
     imagePreviews: [],
   });
@@ -68,14 +41,13 @@ export default function MenusPage() {
   const filteredMenus = useMemo(() => {
     const q = menuQuery.trim().toLowerCase();
     return menus.filter((m) => {
-      const matchesBranch = menuBranchFilter === "all" ? true : m.branch === menuBranchFilter;
       const matchesQuery =
         q.length === 0
           ? true
-          : m.name.toLowerCase().includes(q) || m.branch.toLowerCase().includes(q);
-      return matchesBranch && matchesQuery;
+          : m.name.toLowerCase().includes(q) || (m.branch ?? "").toLowerCase().includes(q);
+      return matchesQuery;
     });
-  }, [menus, menuBranchFilter, menuQuery]);
+  }, [menus, menuQuery]);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -85,29 +57,6 @@ export default function MenusPage() {
       setMenus(data.menus ?? []);
     };
     loadInitial();
-
-    const loadBranches = async () => {
-      setBranchUi((prev) => ({ ...prev, loading: true, error: null }));
-      try {
-        const res = await fetch("/api/branches");
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? "Failed to load branches");
-        }
-        const data = await res.json().catch(() => ({}));
-        const nextBranches = Array.isArray(data.branches) ? data.branches : [];
-        setBranchUi((prev) => ({
-          ...prev,
-          branches: nextBranches,
-          loading: false,
-          error: null,
-        }));
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to load branches";
-        setBranchUi((prev) => ({ ...prev, loading: false, error: msg }));
-      }
-    };
-    loadBranches();
 
     const socket = getSocket();
     socket.emit("subscribeAdmin");
@@ -119,78 +68,9 @@ export default function MenusPage() {
 
     return () => {
       socket.off("connect");
-      socket.off("bootstrap");
       socket.off("menusUpdated");
     };
   }, []);
-
-  const doAddBranch = async (name: string) => {
-    setBranchUi((prev) => ({ ...prev, saving: true, error: null }));
-    try {
-      const res = await fetch("/api/branches", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to add branch");
-      }
-      setBranchUi((prev) => {
-        const next = prev.branches.includes(name)
-          ? prev.branches
-          : [...prev.branches, name].sort((a, b) => a.localeCompare(b));
-        return {
-          ...prev,
-          branches: next,
-          newBranchName: "",
-          saving: false,
-          error: null,
-        };
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to add branch";
-      setBranchUi((prev) => ({ ...prev, saving: false, error: msg }));
-    }
-  };
-
-  const requestAddBranch = () => {
-    const name = branchUi.newBranchName.trim();
-    if (!name) {
-      setBranchUi((prev) => ({ ...prev, error: "Branch name is required" }));
-      return;
-    }
-    setBranchConfirm({ open: true, action: "add", name });
-  };
-
-  const doRemoveBranch = async (name: string) => {
-    if (menuForm.branch === name) {
-      setMenuForm((prev) => ({ ...prev, branch: "" }));
-    }
-    setBranchUi((prev) => ({ ...prev, saving: true, error: null }));
-    try {
-      const res = await fetch(`/api/branches/${encodeURIComponent(name)}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to remove branch");
-      }
-      setBranchUi((prev) => ({
-        ...prev,
-        branches: prev.branches.filter((b) => b !== name),
-        saving: false,
-        error: null,
-      }));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to remove branch";
-      setBranchUi((prev) => ({ ...prev, saving: false, error: msg }));
-    }
-  };
-
-  const requestRemoveBranch = (name: string) => {
-    setBranchConfirm({ open: true, action: "delete", name });
-  };
 
   useEffect(() => {
     return () => {
@@ -201,10 +81,6 @@ export default function MenusPage() {
   const handleMenuSubmit = async () => {
     if (!menuForm.name.trim()) {
       setMenuError("Menu name is required");
-      return;
-    }
-    if (!menuForm.branch) {
-      setMenuError("Please select a branch");
       return;
     }
     if (!editingMenuId && menuForm.imageFiles.length === 0) {
@@ -237,7 +113,6 @@ export default function MenusPage() {
       const payload = {
         name: menuForm.name,
         type: "image" as MenuType,
-        branch: menuForm.branch,
         imageUrls,
       };
 
@@ -266,7 +141,6 @@ export default function MenusPage() {
       menuForm.imagePreviews.forEach((url) => URL.revokeObjectURL(url));
       setMenuForm({
         name: "",
-        branch: "",
         imageFiles: [],
         imagePreviews: [],
       });
@@ -293,7 +167,6 @@ export default function MenusPage() {
     setMenuError(null);
     setMenuForm({
       name: menu.name,
-      branch: menu.branch,
       imageFiles: [],
       imagePreviews: [],
     });
@@ -307,7 +180,6 @@ export default function MenusPage() {
     setMenuError(null);
     setMenuForm({
       name: "",
-      branch: "",
       imageFiles: [],
       imagePreviews: [],
     });
@@ -355,23 +227,10 @@ export default function MenusPage() {
               <input
                 value={menuQuery}
                 onChange={(e) => setMenuQuery(e.target.value)}
-                placeholder="Search menus or branches…"
+                placeholder="Search menus"
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-200/40"
               />
             </div>
-
-            <select
-              value={menuBranchFilter}
-              onChange={(e) => setMenuBranchFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-200/40 sm:w-56"
-            >
-              <option value="all">All branches</option>
-              {branchUi.branches.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
 
             <button
               type="button"
@@ -431,7 +290,7 @@ export default function MenusPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
-                            {menu.branch}
+                            {menu.branch ?? ""}
                           </p>
                           <h3 className="text-lg font-semibold text-slate-900">{menu.name}</h3>
                         </div>
@@ -536,35 +395,6 @@ export default function MenusPage() {
               </label>
 
               <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-                Branch
-                <div className="flex gap-2">
-                  <select
-                    value={menuForm.branch}
-                    onChange={(e) =>
-                      setMenuForm((prev) => ({ ...prev, branch: e.target.value }))
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base shadow-sm outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-200/40"
-                  >
-                    <option value="">Select a branch</option>
-                    {branchUi.branches.map((branch) => (
-                      <option key={branch} value={branch}>
-                        {branch}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBranchUi((prev) => ({ ...prev, editing: true, error: null }))
-                    }
-                    className="shrink-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-                  >
-                    Edit
-                  </button>
-                </div>
-              </label>
-
-              <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Upload menu images
                 <input
                   type="file"
@@ -644,158 +474,6 @@ export default function MenusPage() {
                       : "Save menu"}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {branchUi.editing && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Close"
-            disabled={branchUi.saving}
-            onClick={() =>
-              setBranchUi((prev) => ({
-                ...prev,
-                editing: false,
-                error: null,
-                newBranchName: "",
-              }))
-            }
-            className="absolute inset-0 bg-black/40"
-          />
-
-          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Edit branches</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Add or delete branches used in the menu dropdown.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={branchUi.saving}
-                onClick={() =>
-                  setBranchUi((prev) => ({
-                    ...prev,
-                    editing: false,
-                    error: null,
-                    newBranchName: "",
-                  }))
-                }
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              <div className="flex gap-2">
-                <input
-                  value={branchUi.newBranchName}
-                  onChange={(e) =>
-                    setBranchUi((prev) => ({ ...prev, newBranchName: e.target.value }))
-                  }
-                  placeholder="New branch name"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base shadow-sm outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-200/40"
-                />
-                <button
-                  type="button"
-                  disabled={branchUi.saving}
-                  onClick={requestAddBranch}
-                  className="shrink-0 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {branchUi.saving ? "Saving..." : "Add"}
-                </button>
-              </div>
-
-              {branchUi.error && (
-                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {branchUi.error}
-                </p>
-              )}
-
-              <div className="max-h-64 overflow-auto rounded-xl border border-slate-200">
-                {branchUi.branches.length === 0 ? (
-                  <div className="p-4 text-sm text-slate-600">No branches found.</div>
-                ) : (
-                  <div className="divide-y divide-slate-200">
-                    {branchUi.branches.map((name) => (
-                      <div key={name} className="flex items-center justify-between gap-3 p-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-800">
-                            {name}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={branchUi.saving}
-                          onClick={() => requestRemoveBranch(name)}
-                          className="shrink-0 rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {branchConfirm.open && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Close"
-            disabled={branchUi.saving}
-            onClick={() => setBranchConfirm({ open: false })}
-            className="absolute inset-0 bg-black/40"
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">
-              {branchConfirm.action === "add" ? "Add branch" : "Delete branch"}
-            </h3>
-            <p className="mt-2 text-sm text-slate-600">
-              {branchConfirm.action === "add"
-                ? `Add "${branchConfirm.name}" to branches?`
-                : `Delete "${branchConfirm.name}" from branches?`}
-            </p>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={branchUi.saving}
-                onClick={() => setBranchConfirm({ open: false })}
-                className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={branchUi.saving}
-                onClick={async () => {
-                  const { action, name } = branchConfirm;
-                  setBranchConfirm({ open: false });
-                  if (action === "add") await doAddBranch(name);
-                  if (action === "delete") await doRemoveBranch(name);
-                }}
-                className={
-                  branchConfirm.action === "add"
-                    ? "rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
-                    : "rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
-                }
-              >
-                {branchUi.saving
-                  ? "Working..."
-                  : branchConfirm.action === "add"
-                    ? "Add"
-                    : "Delete"}
-              </button>
             </div>
           </div>
         </div>

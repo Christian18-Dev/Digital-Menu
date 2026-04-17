@@ -25,9 +25,9 @@ export async function POST(request: NextRequest) {
     imageUrls?: string[];
   };
 
-  if (!payload.name || !payload.type || !payload.branch) {
+  if (!payload.name || !payload.type) {
     return NextResponse.json(
-      { error: "name, type, and branch are required" },
+      { error: "name and type are required" },
       { status: 400 }
     );
   }
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const menu = upsertMenuFromPayload({
     name: payload.name,
     type: payload.type,
-    branch: payload.branch,
+    branch: payload.branch ?? "",
     imageUrls: payload.imageUrls,
   });
 
