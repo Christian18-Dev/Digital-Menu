@@ -91,7 +91,9 @@ export default function MenusPage() {
 
     setCreatingMenu(true);
     try {
-      let imageUrls: string[] | undefined = editingMenuImageUrls ?? undefined;
+      let imageUrls: string[] | undefined = editingMenuId
+        ? (editingMenuImageUrls ?? [])
+        : undefined;
 
       if (menuForm.imageFiles.length > 0) {
         const fd = new FormData();
@@ -107,7 +109,12 @@ export default function MenusPage() {
           throw new Error(err.error ?? "Failed to upload images");
         }
         const uploadData = await uploadRes.json();
-        imageUrls = uploadData.urls;
+
+        if (editingMenuId) {
+          imageUrls = [...(imageUrls ?? []), ...(uploadData.urls ?? [])];
+        } else {
+          imageUrls = uploadData.urls;
+        }
       }
 
       const payload = {
@@ -418,6 +425,35 @@ export default function MenusPage() {
                     Leave empty to keep existing images.
                   </p>
                 )}
+
+                {editingMenuId && (editingMenuImageUrls?.length ?? 0) > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-slate-600">Existing images</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {(editingMenuImageUrls ?? []).map((url, idx) => (
+                        <div key={`${url}-${idx}`} className="relative">
+                          <img
+                            src={url}
+                            alt={`Existing ${idx + 1}`}
+                            className="h-28 w-full rounded-xl object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMenuImageUrls((prev) =>
+                                (prev ?? []).filter((_, i) => i !== idx)
+                              );
+                            }}
+                            className="absolute right-1 top-1 rounded-full bg-red-500 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-red-600"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {menuForm.imagePreviews.length > 0 && (
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {menuForm.imagePreviews.map((preview, idx) => (

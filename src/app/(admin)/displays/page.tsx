@@ -13,6 +13,10 @@ type DisplayDeleteConfirmState =
   | { open: false }
   | { open: true; displayId: string; displayName: string };
 
+type DisplayMenusModalState =
+  | { open: false }
+  | { open: true; displayId: string };
+
 export default function DisplaysPage() {
   const [displays, setDisplays] = useState<Display[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -30,6 +34,9 @@ export default function DisplaysPage() {
     Record<string, string[]>
   >({});
   const [deleteConfirm, setDeleteConfirm] = useState<DisplayDeleteConfirmState>({
+    open: false,
+  });
+  const [menusModal, setMenusModal] = useState<DisplayMenusModalState>({
     open: false,
   });
 
@@ -421,113 +428,21 @@ export default function DisplaysPage() {
                         Menus on this display
                       </p>
 
-                      <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
-                        <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+                        <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-700">
                             {effectiveMenuIds.length} selected
                           </p>
                           <p className="text-xs text-slate-500">Plays in order top-to-bottom</p>
                         </div>
-
-                        <div className="mt-2 flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={isSaving || assignableMenus.length === 0}
-                            onClick={() =>
-                              setPendingMenuIdsByDisplay((prev) => ({
-                                ...prev,
-                                [d.id]: assignableMenus.map((m) => m.id),
-                              }))
-                            }
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            Select all
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isSaving}
-                            onClick={() =>
-                              setPendingMenuIdsByDisplay((prev) => ({
-                                ...prev,
-                                [d.id]: [],
-                              }))
-                            }
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            Clear
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isSaving || !hasPendingChanges}
-                            onClick={async () => {
-                              await doAssignMenus(d.id, effectiveMenuIds);
-                            }}
-                            className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
-                          >
-                            {isSaving ? "Saving..." : "Save"}
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isSaving || !hasPendingChanges}
-                            onClick={() =>
-                              setPendingMenuIdsByDisplay((prev) => {
-                                if (!Object.prototype.hasOwnProperty.call(prev, d.id)) return prev;
-                                const { [d.id]: _removed, ...rest } = prev;
-                                return rest;
-                              })
-                            }
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-
-                        <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
-                          {assignableMenus.length === 0 ? (
-                            <p className="text-xs text-slate-500">No menus available for this branch.</p>
-                          ) : (
-                            assignableMenus.map((m) => {
-                              const checked = effectiveMenuIds.includes(m.id);
-                              return (
-                                <label
-                                  key={m.id}
-                                  className={
-                                    "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm transition " +
-                                    (checked ? "bg-slate-50" : "hover:bg-slate-50")
-                                  }
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={isSaving}
-                                    onChange={(e) => {
-                                      setPendingMenuIdsByDisplay((prev) => {
-                                        const current = Object.prototype.hasOwnProperty.call(prev, d.id)
-                                          ? prev[d.id]
-                                          : savedMenuIds;
-                                        const nextMenuIds = e.target.checked
-                                          ? current.includes(m.id)
-                                            ? current
-                                            : [...current, m.id]
-                                          : current.filter((id) => id !== m.id);
-                                        return { ...prev, [d.id]: nextMenuIds };
-                                      });
-                                    }}
-                                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900"
-                                  />
-                                  <span className="min-w-0">
-                                    <span className="block truncate font-semibold text-slate-800">
-                                      {m.name}
-                                    </span>
-                                    <span className="block truncate text-xs text-slate-500">{m.branch}</span>
-                                  </span>
-                                </label>
-                              );
-                            })
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          disabled={isSaving || assignableMenus.length === 0}
+                          onClick={() => setMenusModal({ open: true, displayId: d.id })}
+                          className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
+                        >
+                          Select menus
+                        </button>
                       </div>
 
                       <p className="text-xs text-slate-500">
@@ -673,6 +588,189 @@ export default function DisplaysPage() {
           </div>
         </div>
       )}
+
+      {menusModal.open && (() => {
+        const d = displays.find((x) => x.id === menusModal.displayId);
+        if (!d) return null;
+
+        const savedMenuIds = Array.isArray(d.menuIds) ? d.menuIds : [];
+        const effectiveMenuIds = Object.prototype.hasOwnProperty.call(
+          pendingMenuIdsByDisplay,
+          d.id
+        )
+          ? pendingMenuIdsByDisplay[d.id]
+          : savedMenuIds;
+
+        const menusByIdLocal = menusById;
+        const effectiveSelectedMenus = effectiveMenuIds
+          .map((id) => menusByIdLocal.get(id))
+          .filter((m): m is Menu => !!m);
+
+        const assignableMenus = d.branch
+          ? menus.filter((m) => {
+              const menuBranch = (m.branch ?? "").trim();
+              if (menuBranch.length === 0) return true;
+              return menuBranch === d.branch;
+            })
+          : menus;
+
+        const hasPendingChanges = (() => {
+          if (effectiveMenuIds.length !== savedMenuIds.length) return true;
+          const a = new Set(effectiveMenuIds);
+          for (const id of savedMenuIds) {
+            if (!a.has(id)) return true;
+          }
+          return false;
+        })();
+
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <button
+              type="button"
+              aria-label="Close"
+              disabled={isSaving}
+              onClick={() => setMenusModal({ open: false })}
+              className="absolute inset-0 bg-black/40"
+            />
+            <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-semibold text-slate-900">
+                    Select menus for {d.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">Plays in order top-to-bottom</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMenusModal({ open: false })}
+                  disabled={isSaving}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-700">
+                    {effectiveMenuIds.length} selected
+                  </p>
+                  <p className="text-xs text-slate-500">Branch: {d.branch || "All"}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isSaving || assignableMenus.length === 0}
+                    onClick={() =>
+                      setPendingMenuIdsByDisplay((prev) => ({
+                        ...prev,
+                        [d.id]: assignableMenus.map((m) => m.id),
+                      }))
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() =>
+                      setPendingMenuIdsByDisplay((prev) => ({
+                        ...prev,
+                        [d.id]: [],
+                      }))
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Clear
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSaving || !hasPendingChanges}
+                    onClick={async () => {
+                      await doAssignMenus(d.id, effectiveMenuIds);
+                      setMenusModal({ open: false });
+                    }}
+                    className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSaving || !hasPendingChanges}
+                    onClick={() =>
+                      setPendingMenuIdsByDisplay((prev) => {
+                        if (!Object.prototype.hasOwnProperty.call(prev, d.id)) return prev;
+                        const { [d.id]: _removed, ...rest } = prev;
+                        return rest;
+                      })
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="max-h-[50vh] space-y-2 overflow-auto pr-1">
+                  {assignableMenus.length === 0 ? (
+                    <p className="text-xs text-slate-500">No menus available for this branch.</p>
+                  ) : (
+                    assignableMenus.map((m) => {
+                      const checked = effectiveMenuIds.includes(m.id);
+                      return (
+                        <label
+                          key={m.id}
+                          className={
+                            "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm transition " +
+                            (checked ? "bg-slate-50" : "hover:bg-slate-50")
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={isSaving}
+                            onChange={(e) => {
+                              setPendingMenuIdsByDisplay((prev) => {
+                                const current = Object.prototype.hasOwnProperty.call(prev, d.id)
+                                  ? prev[d.id]
+                                  : savedMenuIds;
+                                const nextMenuIds = e.target.checked
+                                  ? current.includes(m.id)
+                                    ? current
+                                    : [...current, m.id]
+                                  : current.filter((id) => id !== m.id);
+                                return { ...prev, [d.id]: nextMenuIds };
+                              });
+                            }}
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900"
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold text-slate-800">
+                              {m.name}
+                            </span>
+                            <span className="block truncate text-xs text-slate-500">{m.branch}</span>
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  {effectiveSelectedMenus.length > 0
+                    ? `Now showing: ${effectiveSelectedMenus
+                        .map((m) => `${m.branch} — ${m.name}`)
+                        .join(", ")}`
+                    : "No menu assigned yet."}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

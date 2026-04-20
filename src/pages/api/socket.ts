@@ -43,10 +43,15 @@ const handler = (_req: NextApiRequest, res: NextApiResponseWithSocket) => {
         socket.join("admins");
         const db = await getMongoDb();
         const [menusFromDb, displaysFromDb] = await Promise.all([
-          db.collection("menus").find({}, { projection: { _id: 0 } }).toArray(),
+          db
+            .collection("menus")
+            .find({}, { projection: { _id: 0 } })
+            .sort({ updatedAt: -1 })
+            .toArray(),
           db
             .collection("displays")
             .find({}, { projection: { _id: 0 } })
+            .sort({ updatedAt: -1 })
             .toArray(),
         ]);
         hydrateMenus(menusFromDb as any);
@@ -66,10 +71,15 @@ const handler = (_req: NextApiRequest, res: NextApiResponseWithSocket) => {
 
         const db = await getMongoDb();
         const [menusFromDb, displaysFromDb] = await Promise.all([
-          db.collection("menus").find({}, { projection: { _id: 0 } }).toArray(),
+          db
+            .collection("menus")
+            .find({}, { projection: { _id: 0 } })
+            .sort({ updatedAt: -1 })
+            .toArray(),
           db
             .collection("displays")
             .find({}, { projection: { _id: 0 } })
+            .sort({ updatedAt: -1 })
             .toArray(),
         ]);
         hydrateMenus(menusFromDb as any);
