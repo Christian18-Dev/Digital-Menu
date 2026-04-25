@@ -35,8 +35,7 @@ export default function LoginClient() {
         return;
       }
 
-      router.replace(nextPath);
-      router.refresh();
+      window.location.assign(nextPath);
     } finally {
       setIsSubmitting(false);
     }
