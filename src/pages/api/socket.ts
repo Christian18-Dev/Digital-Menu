@@ -15,6 +15,10 @@ import { getMongoDb } from "@/lib/mongodb";
 
 let ioRef: Server | undefined;
 let unsubscribeRef: (() => void) | undefined;
+let offlineSweepIntervalRef: NodeJS.Timeout | undefined;
+
+const DISPLAY_OFFLINE_AFTER_MS = 45000;
+const OFFLINE_SWEEP_INTERVAL_MS = 10000;
 
 type NextApiResponseWithSocket = NextApiResponse & {
   socket: NextApiResponse["socket"] & {
@@ -33,6 +37,51 @@ const handler = (_req: NextApiRequest, res: NextApiResponseWithSocket) => {
     });
     ioRef = io;
     res.socket.server.io = io;
+
+    offlineSweepIntervalRef = setInterval(async () => {
+      const activeIo = ioRef;
+      if (!activeIo) return;
+
+      const now = Date.now();
+      const cutoff = now - DISPLAY_OFFLINE_AFTER_MS;
+
+      try {
+        const db = await getMongoDb();
+        const stale = await db
+          .collection("displays")
+          .find(
+            {
+              online: true,
+              lastSeen: { $lt: cutoff },
+            },
+            { projection: { _id: 0, id: 1 } }
+          )
+          .toArray();
+
+        if (stale.length === 0) return;
+
+        const staleIds = stale
+          .map((d: any) => (typeof d?.id === "string" ? d.id : null))
+          .filter((id: string | null): id is string => !!id);
+
+        if (staleIds.length === 0) return;
+
+        await db.collection("displays").updateMany(
+          { id: { $in: staleIds } },
+          {
+            $set: {
+              online: false,
+              updatedAt: now,
+            },
+          }
+        );
+
+        staleIds.forEach((id) => setDisplayOffline(id));
+        activeIo.to("admins").emit("displaysUpdated", listDisplays());
+      } catch {
+        // ignore
+      }
+    }, OFFLINE_SWEEP_INTERVAL_MS);
 
     const displayBySocket = new Map<string, string>();
 
@@ -69,6 +118,24 @@ const handler = (_req: NextApiRequest, res: NextApiResponseWithSocket) => {
         joinedDisplayId = displayId;
         setDisplayOnline(displayId);
 
+        try {
+          const db = await getMongoDb();
+          const now = Date.now();
+          await db.collection("displays").updateOne(
+            { id: displayId },
+            {
+              $set: {
+                online: true,
+                lastSeen: now,
+                updatedAt: now,
+              },
+            },
+            { upsert: false }
+          );
+        } catch {
+          // ignore
+        }
+
         const db = await getMongoDb();
         const [menusFromDb, displaysFromDb] = await Promise.all([
           db
@@ -93,14 +160,47 @@ const handler = (_req: NextApiRequest, res: NextApiResponseWithSocket) => {
         }
       });
 
-      socket.on("displayHeartbeat", (displayId: string) => {
+      socket.on("displayHeartbeat", async (displayId: string) => {
         heartbeatDisplay(displayId);
+        try {
+          const db = await getMongoDb();
+          const now = Date.now();
+          await db.collection("displays").updateOne(
+            { id: displayId },
+            {
+              $set: {
+                online: true,
+                lastSeen: now,
+              },
+            },
+            { upsert: false }
+          );
+        } catch {
+          // ignore
+        }
       });
 
-      socket.on("disconnect", () => {
+      socket.on("disconnect", async () => {
         if (joinedDisplayId) {
-          setDisplayOffline(joinedDisplayId);
+          const displayId = joinedDisplayId;
+          setDisplayOffline(displayId);
           displayBySocket.delete(socket.id);
+          try {
+            const db = await getMongoDb();
+            const now = Date.now();
+            await db.collection("displays").updateOne(
+              { id: displayId },
+              {
+                $set: {
+                  online: false,
+                  updatedAt: now,
+                },
+              },
+              { upsert: false }
+            );
+          } catch {
+            // ignore
+          }
         }
       });
     });
