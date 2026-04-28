@@ -143,7 +143,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
-            <p className="text-sm text-slate-600">Live status across menus and displays.</p>
+            <p className="text-sm text-slate-600">Overview</p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
@@ -151,7 +151,7 @@ export default function DashboardPage() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search displays, IDs, menus…"
+                placeholder="Search…"
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-200/40"
               />
             </div>
@@ -173,35 +173,28 @@ export default function DashboardPage() {
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard title="Menus" value={summary.menuCount} sub="In current filter" />
-        <StatCard title="Displays" value={summary.displayCount} sub="In current filter" />
-        <StatCard title="Online" value={summary.onlineCount} sub="Displays online" />
+        <StatCard title="Menus" value={summary.menuCount} />
+        <StatCard title="Displays" value={summary.displayCount} />
+        <StatCard title="Online" value={summary.onlineCount} />
       </section>
 
       <section>
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Display health</h2>
-              <p className="mt-1 text-sm text-slate-600">Online status and menu assignment.</p>
+              <h2 className="text-lg font-semibold text-slate-900">Displays</h2>
             </div>
             <span className="text-xs text-slate-500">
               {filteredDisplays.length} item{filteredDisplays.length === 1 ? "" : "s"}
             </span>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-            <div className="grid grid-cols-[1.3fr_0.9fr_0.7fr_0.7fr] gap-3 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">
-              <div>Display</div>
-              <div>Branch</div>
-              <div>Status</div>
-              <div>Menus</div>
-            </div>
-            <div className="divide-y divide-slate-200 bg-white">
-              {filteredDisplays.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-slate-600">No displays found.</div>
-              ) : (
-                filteredDisplays
+          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {filteredDisplays.length === 0 ? (
+              <div className="px-4 py-6 text-sm text-slate-600">No displays found.</div>
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {filteredDisplays
                   .slice()
                   .sort((a, b) => {
                     const aOnline = a.online ? 1 : 0;
@@ -213,43 +206,47 @@ export default function DashboardPage() {
                   .map((d) => {
                     const assignedMenus = resolveDisplayMenus(d, menusById);
                     const assignedCount = getAssignedMenuIds(d).length;
+                    const statusText = d.online
+                      ? "Online"
+                      : d.lastSeen
+                        ? `Last seen ${formatRelativeTime(d.lastSeen)}`
+                        : "Offline";
+
                     return (
-                      <div key={d.id} className="grid grid-cols-[1.3fr_0.9fr_0.7fr_0.7fr] gap-3 px-4 py-3 text-sm">
+                      <div key={d.id} className="flex items-center justify-between gap-4 px-4 py-3">
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900">{d.name}</p>
-                          <p className="truncate font-mono text-xs text-slate-500">{d.id}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {d.online
-                              ? "Online"
-                              : d.lastSeen
-                                ? `Last seen ${formatRelativeTime(d.lastSeen)}`
-                                : "Offline"}
+                          <div className="flex items-center gap-2">
+                            <span
+                              title={statusText}
+                              className={
+                                "inline-flex h-2.5 w-2.5 rounded-full " +
+                                (d.online ? "bg-emerald-500" : "bg-slate-300")
+                              }
+                            />
+                            <p className="truncate text-sm font-semibold text-slate-900">{d.name}</p>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {d.branch || "—"}
+                            {" · "}
+                            <span className="font-mono">{d.id}</span>
                           </p>
                         </div>
-                        <div className="truncate text-slate-700">{d.branch || "—"}</div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={
-                              "inline-flex h-2.5 w-2.5 rounded-full " +
-                              (d.online ? "bg-emerald-500" : "bg-slate-300")
-                            }
-                          />
-                          <span className="text-slate-700">{d.online ? "Online" : "Offline"}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-900">{assignedCount}</p>
-                          <p className="truncate text-xs text-slate-500">
+
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-semibold text-slate-900">{assignedCount}</p>
+                          <p className="max-w-44 truncate text-xs text-slate-500" title={assignedMenus.map((m) => m.name).join(", ")}
+                          >
                             {assignedMenus.length > 0
                               ? assignedMenus.map((m) => m.name).slice(0, 2).join(", ")
-                              : "No menus assigned"}
+                              : "—"}
                             {assignedMenus.length > 2 ? "…" : ""}
                           </p>
                         </div>
                       </div>
                     );
-                  })
-              )}
-            </div>
+                  })}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -257,14 +254,14 @@ export default function DashboardPage() {
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Recently updated menus</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Recent menus</h2>
             <Link href="/menus" className="text-sm font-semibold text-slate-700 hover:underline">
               View all
             </Link>
           </div>
           <div className="mt-4 space-y-2">
             {recentMenus.length === 0 ? (
-              <p className="text-sm text-slate-600">No menus yet.</p>
+              <p className="text-sm text-slate-600">No menus.</p>
             ) : (
               recentMenus.map((m) => (
                 <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -281,14 +278,14 @@ export default function DashboardPage() {
 
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Recently updated displays</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Recent displays</h2>
             <Link href="/displays" className="text-sm font-semibold text-slate-700 hover:underline">
               View all
             </Link>
           </div>
           <div className="mt-4 space-y-2">
             {recentDisplays.length === 0 ? (
-              <p className="text-sm text-slate-600">No displays yet.</p>
+              <p className="text-sm text-slate-600">No displays.</p>
             ) : (
               recentDisplays.map((d) => (
                 <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -351,17 +348,14 @@ export default function DashboardPage() {
 function StatCard({
   title,
   value,
-  sub,
 }: {
   title: string;
   value: number;
-  sub: string;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur">
       <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">{title}</p>
       <p className="mt-2 text-3xl font-semibold text-slate-900">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{sub}</p>
     </div>
   );
 }

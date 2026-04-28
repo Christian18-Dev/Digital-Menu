@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import styles from "./LoginClient.module.css";
 
 export default function LoginClient() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const nextPath = useMemo(() => {
@@ -42,62 +42,51 @@ export default function LoginClient() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">Admin Login</h1>
-            <p className="text-sm text-slate-600">Sign in to access the dashboard.</p>
-          </div>
+    <div className={styles.page}>
+      <form onSubmit={onSubmit} className={styles.form}>
+        <p>
+          Welcome,<span>sign in to continue</span>
+        </p>
 
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
-            <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-              Username
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-base shadow-sm focus:border-slate-400 focus:outline-none"
-                autoComplete="username"
-              />
-            </label>
+        <input
+          type="text"
+          placeholder="Username"
+          name="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          autoComplete="username"
+        />
 
-            <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-base shadow-sm focus:border-slate-400 focus:outline-none"
-                autoComplete="current-password"
-              />
-            </label>
+        <input
+          type="password"
+          placeholder="Password"
+          name="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+        />
 
-            {error && (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+        {error && <div className={styles.error}>{error}</div>}
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-            >
-              {isSubmitting ? "Signing in…" : "Sign in"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                router.push("/register");
-              }}
-              className="w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              Create an account
-            </button>
-          </form>
-        </div>
-      </div>
+        <button type="submit" className={styles.oauthButton} disabled={isSubmitting}>
+          {isSubmitting ? "Signing in…" : "Continue"}
+          <svg
+            className={styles.icon}
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m6 17 5-5-5-5"></path>
+            <path d="m13 17 5-5-5-5"></path>
+          </svg>
+        </button>
+      </form>
     </div>
   );
 }
