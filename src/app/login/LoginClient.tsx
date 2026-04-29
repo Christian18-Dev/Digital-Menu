@@ -44,6 +44,12 @@ export default function LoginClient() {
   return (
     <div className={styles.page}>
       <form onSubmit={onSubmit} className={styles.form}>
+        <img
+          src="/uploads/vgmenulogo.png"
+          alt="VGMenu"
+          className={styles.logo}
+          draggable={false}
+        />
         <p>
           Welcome,<span>sign in to continue</span>
         </p>

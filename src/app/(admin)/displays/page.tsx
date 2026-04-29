@@ -17,6 +17,10 @@ type DisplayMenusModalState =
   | { open: false }
   | { open: true; displayId: string };
 
+type DisplayLinkModalState =
+  | { open: false }
+  | { open: true; displayId: string; link: string };
+
 export default function DisplaysPage() {
   const [displays, setDisplays] = useState<Display[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -39,6 +43,8 @@ export default function DisplaysPage() {
   const [menusModal, setMenusModal] = useState<DisplayMenusModalState>({
     open: false,
   });
+
+  const [linkModal, setLinkModal] = useState<DisplayLinkModalState>({ open: false });
 
   const menusById = useMemo(() => new Map(menus.map((m) => [m.id, m])), [menus]);
 
@@ -242,6 +248,8 @@ export default function DisplaysPage() {
     } catch {
       // ignore
     }
+
+    setLinkModal({ open: true, displayId, link });
   };
 
   return (
@@ -398,7 +406,7 @@ export default function DisplaysPage() {
                           onClick={() => copyDisplayLink(d.id)}
                           className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
                         >
-                          Copy link
+                          Link
                         </button>
                         <button
                           type="button"
@@ -771,6 +779,61 @@ export default function DisplaysPage() {
           </div>
         );
       })()}
+
+      {linkModal.open && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close"
+            disabled={isSaving}
+            onClick={() => setLinkModal({ open: false })}
+            className="absolute inset-0 bg-black/40"
+          />
+          <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-slate-900">Display link</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  This link was copied to your clipboard.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLinkModal({ open: false })}
+                disabled={isSaving}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                <p className="break-all font-mono text-sm text-slate-800">{linkModal.link}</p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <a
+                  href={linkModal.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                >
+                  Open
+                </a>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => copyDisplayLink(linkModal.displayId)}
+                  className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  Copy again
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

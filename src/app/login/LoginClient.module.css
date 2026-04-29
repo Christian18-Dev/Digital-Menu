@@ -17,6 +17,14 @@
   box-shadow: 4px 4px var(--main-color);
 }
 
+.logo {
+  width: 180px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  align-self: center;
+}
+
 .form > p {
   font-family: var(--font-DelaGothicOne, inherit);
   color: var(--font-color);
